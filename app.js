@@ -2,8 +2,10 @@ const RtmClient = require('@slack/client').RtmClient;
 const MemoryDataStore = require('@slack/client').MemoryDataStore;
 const CLIENT_EVENTS = require('@slack/client').CLIENT_EVENTS;
 const RTM_EVENTS = require('@slack/client').RTM_EVENTS;
-
 const token = process.env.SLACK_BOT_TOKEN || '';
+const getDay = require('./weekdays');
+const LanguageProcessor = require('./LanguageProcessor');
+const lpClient = new LanguageProcessor();
 
 let rtm = new RtmClient(token, {
     logLevel: 'error',
@@ -19,9 +21,24 @@ rtm.on(CLIENT_EVENTS.RTM.AUTHENTICATED, function (rtmStartData) {
 
 rtm.start();
 
-rtm.on(RTM_EVENTS.MESSAGE, message => {
+rtm.on(RTM_EVENTS.MESSAGE, async message => {
    if (message.text === 'Hello.') {
        rtm.sendMessage(`Hello <@${ message.user }>!`, message.channel);
+   } else {
+       const entities = await lpClient.detectEntities(message.text);
+
+       if (entities.hasOwnProperty('greetings')) {
+           const dayName = getDay();
+           rtm.sendMessage(`Hey. ${ dayName }s are the worst... :nate:`, message.channel);
+           return;
+       }
+
+       if (entities.hasOwnProperty('intent')) {
+           const firstIntent = entities.intent[0];
+           rtm.sendMessage(`I'm detecting the intent ${ firstIntent.value }`, message.channel);
+       } else {
+           rtm.sendMessage(`I'm not sure what you're trying to say...`, message.channel);
+       }
    }
 });
 

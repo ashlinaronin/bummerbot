@@ -7,7 +7,7 @@
     "test": "mocha"
   },
   "engines": {
-    "node": "~7.4.0"
+    "node": "~8.5.0"
   },
   "author": "ashlin aronin",
   "license": "ISC",
