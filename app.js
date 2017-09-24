@@ -34,24 +34,25 @@ rtm.on(RTM_EVENTS.MESSAGE, async message => {
     try {
         if (message.user === botUserId) return;
 
-        if (message.text === 'Hello.') {
-            rtm.sendMessage(`Hello <@${ message.user }>!`, message.channel);
-        } else {
-            const entities = await lpClient.detectEntities(message.text);
+        const italicized = /_.*_/.test(message.text);
+        if (italicized) {
+            rtm.sendMessage(`${ message.text }, lol`, message.channel);
+        }
 
-            if (entities.hasOwnProperty('greetings')) {
-                const dayName = getDay();
-                rtm.sendMessage(`Hey. ${ dayName }s are the worst... :nate:`, message.channel);
-                return;
-            }
+        const entities = await lpClient.detectEntities(message.text);
 
-            if (entities.hasOwnProperty('intent')) {
-                const firstIntent = entities.intent[0];
+        if (entities.hasOwnProperty('greetings')) {
+            const dayName = getDay();
+            rtm.sendMessage(`Hey. ${ dayName }s are the worst... :nate:`, message.channel);
+            return;
+        }
 
-                const response = getResponseForIntent(firstIntent);
-                if (response) {
-                    rtm.sendMessage(response, message.channel);
-                }
+        if (entities.hasOwnProperty('intent')) {
+            const firstIntent = entities.intent[0];
+
+            const response = getResponseForIntent(firstIntent);
+            if (response) {
+                rtm.sendMessage(response, message.channel);
             }
         }
     }
