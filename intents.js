@@ -1,6 +1,7 @@
 const INTENTS = {
     PLAY_TECHNO: 'play_techno',
-    WHO_ARE_YOU: 'who_are_you'
+    WHO_ARE_YOU: 'who_are_you',
+    COIL: 'coil'
 };
 
 const LINKS = {
@@ -14,6 +15,8 @@ function getResponseForIntent(intent) {
             return `affirmative. playing techno. :techno: ${ LINKS.TECHNO_VID }`;
         case (INTENTS.WHO_ARE_YOU):
             return `i'm bummerbot. :blackheart:`;
+        case (INTENTS.COIL):
+            return `:coil:`;
         default:
             return null;
     }
