@@ -6,16 +6,21 @@ const WebClient = require('@slack/client').WebClient;
 const token = process.env.SLACK_BOT_TOKEN || '';
 const getDay = require('./services/weekdays');
 const { getResponseForIntent } = require('./services/intents');
-const { registerTweetListener } = require('./services/tweetStream');
+const { registerTweetListener, removeTweetListener } = require('./services/tweetStream');
+const craigslist = require('./services/craigslist');
 const LanguageProcessor = require('./services/LanguageProcessor');
+const ARBYS_SEARCH_STRING = 'arbys';
+const THIRTY_SECONDS = 30000;
+const PRIMARY_CHANNEL_NAME = 'bot-test';
 
 let botUserId;
 let botTestChannelId;
 let lpClient, rtm, web, arbysSubscription;
+let craigslistTimer;
 
 init();
 
-function init() {
+async function init() {
     lpClient = new LanguageProcessor();
 
     rtm = new RtmClient(token, {
@@ -32,6 +37,24 @@ function init() {
     rtm.on(CLIENT_EVENTS.RTM.AUTHENTICATED, onAuthenticated);
     rtm.on(RTM_EVENTS.MESSAGE, onMessage);
     rtm.on(RTM_EVENTS.REACTION_ADDED, onReactionAdded);
+
+    await craigslist.start();
+    sendCraigslistPost();
+    craigslistTimer = setInterval(sendCraigslistPost, THIRTY_SECONDS);
+}
+
+function end() {
+    removeTweetListener(ARBYS_SEARCH_STRING);
+    clearInterval(craigslistTimer);
+    // TODO: end rtm?
+}
+
+function sendCraigslistPost() {
+    let post = craigslist.getRandomPost();
+    if (!post) return;
+
+    const msg = `omg this thing is such a good deal! ${ post.link }`;
+    rtm.sendMessage(msg, botTestChannelId);
 }
 
 function onArbysTweet(tweet) {
@@ -46,10 +69,10 @@ function onAuthenticated(rtmStartData) {
     but not yet connected to a channel`);
     botUserId = rtmStartData.self.id;
 
-    const botTestChannel = rtmStartData.channels.find(c => c.name === 'bot_test');
+    const botTestChannel = rtmStartData.channels.find(c => c.name === PRIMARY_CHANNEL_NAME);
     botTestChannelId = botTestChannel.id;
 
-    arbysSubscription = registerTweetListener('arbys', onArbysTweet);
+    arbysSubscription = registerTweetListener(ARBYS_SEARCH_STRING, onArbysTweet);
 }
 
 async function onMessage(message) {

@@ -1,7 +1,7 @@
 {
   "name": "bummerbot",
   "version": "0.0.1",
-  "description": "a nihilist bot in botkit.",
+  "description": "a nihilist bot.",
   "main": "app.js",
   "scripts": {
     "test": "mocha"
@@ -13,6 +13,8 @@
   "license": "ISC",
   "dependencies": {
     "@slack/client": "^3.13.0",
+    "feedparser-promised": "^1.4.2",
+    "isomorphic-fetch": "^2.2.1",
     "node-wit": "^4.3.0",
     "twit": "^2.2.9"
   }
