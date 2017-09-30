@@ -5,13 +5,15 @@ const RTM_EVENTS = require('@slack/client').RTM_EVENTS;
 const WebClient = require('@slack/client').WebClient;
 const token = process.env.SLACK_BOT_TOKEN || '';
 const getDay = require('./services/weekdays');
+const phraseTypes = require('./constants/phraseTypes');
 const { getResponseForIntent } = require('./services/intents');
 const { registerTweetListener, removeTweetListener } = require('./services/tweetStream');
 const craigslist = require('./services/craigslist');
+const { getAlternativePhrasing } = require('./services/phrasing');
 const LanguageProcessor = require('./services/LanguageProcessor');
 const ARBYS_SEARCH_STRING = 'arbys';
 const THIRTY_SECONDS = 30000;
-const PRIMARY_CHANNEL_NAME = 'bot-test';
+const PRIMARY_CHANNEL_NAME = 'bot_test';
 
 let botUserId;
 let botTestChannelId;
@@ -53,7 +55,7 @@ function sendCraigslistPost() {
     let post = craigslist.getRandomPost();
     if (!post) return;
 
-    const msg = `omg this thing is such a good deal! ${ post.link }`;
+    const msg = `${ getAlternativePhrasing(phraseTypes.SYNTH_POST) } ${ post.link }`;
     rtm.sendMessage(msg, botTestChannelId);
 }
 
@@ -70,6 +72,11 @@ function onAuthenticated(rtmStartData) {
     botUserId = rtmStartData.self.id;
 
     const botTestChannel = rtmStartData.channels.find(c => c.name === PRIMARY_CHANNEL_NAME);
+
+    if (!botTestChannel) {
+        throw new Error('Bot test channel not found');
+    }
+
     botTestChannelId = botTestChannel.id;
 
     arbysSubscription = registerTweetListener(ARBYS_SEARCH_STRING, onArbysTweet);
