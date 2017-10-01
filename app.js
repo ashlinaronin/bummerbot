@@ -12,13 +12,14 @@ const craigslist = require('./services/craigslist');
 const { getAlternativePhrasing } = require('./services/phrasing');
 const LanguageProcessor = require('./services/LanguageProcessor');
 const ARBYS_SEARCH_STRING = 'arbys';
-const THIRTY_SECONDS = 30000;
+const CRAIGLIST_POST_INTERVAL_MS = 28800000;
 const PRIMARY_CHANNEL_NAME = 'bot_test';
 
 let botUserId;
 let botTestChannelId;
 let lpClient, rtm, web, arbysSubscription;
 let craigslistTimer;
+let retweetedIds = [];
 
 init();
 
@@ -42,7 +43,7 @@ async function init() {
 
     await craigslist.start();
     sendCraigslistPost();
-    craigslistTimer = setInterval(sendCraigslistPost, THIRTY_SECONDS);
+    craigslistTimer = setInterval(sendCraigslistPost, CRAIGLIST_POST_INTERVAL_MS);
 }
 
 function end() {
@@ -60,6 +61,12 @@ function sendCraigslistPost() {
 }
 
 function onArbysTweet(tweet) {
+    if (tweet.retweeted_status) {
+        if (retweetedIds.indexOf(tweet.retweeted_status.id_str) > -1) return;
+
+        retweetedIds.push(tweet.retweeted_status.id_str);
+    }
+
     const user = tweet.quoted_status ? tweet.quoted_status.user.screen_name : tweet.user.screen_name;
     const statusId = tweet.quoted_status ? tweet.quoted_status.id_str : tweet.id_str;
     const url = `https://twitter.com/${user}/status/${statusId}`;
