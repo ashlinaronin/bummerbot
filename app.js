@@ -117,6 +117,8 @@ async function onAuthenticated(rtmStartData) {
     }, 60000);
 
     setChannelTopic();
+
+    sendCoilReminder();
 }
 
 async function onMessage(message) {
