@@ -10,54 +10,72 @@ const { getResponseForIntent } = require('./services/intents');
 const { registerTweetListener, removeTweetListener } = require('./services/tweetStream');
 const craigslist = require('./services/craigslist');
 const { getAlternativePhrasing } = require('./services/phrasing');
+const { getCoilYouTubeURL } = require('./services/youtube');
 const LanguageProcessor = require('./services/LanguageProcessor');
 const ARBYS_SEARCH_STRING = 'arbys';
-const CRAIGLIST_POST_INTERVAL_MS = 28800000;
+const CRAIGLIST_POST_INTERVAL_MS = 28800000; // 8 hours
+const COIL_POST_INTERVAL_MS = 172800000; // 2 days
 const PRIMARY_CHANNEL_NAME = 'bot_test';
 
 let botUserId;
 let botTestChannelId;
-let lpClient, rtm, web, arbysSubscription;
-let craigslistTimer;
+let lpClient, slackRtmClient, slackWebClient, arbysSubscription;
+let minutesSinceLastArbysTweet = 0;
+let craigslistTimer, coilTimer, arbystimer;
 let retweetedIds = [];
 
 init();
 
-async function init() {
+function init() {
     lpClient = new LanguageProcessor();
 
-    rtm = new RtmClient(token, {
+    slackRtmClient = new RtmClient(token, {
         logLevel: 'error',
         dataStore: new MemoryDataStore()
     });
 
-    web = new WebClient(token, {
+    slackWebClient = new WebClient(token, {
         logLevel: 'error'
     });
 
-    rtm.start();
+    slackRtmClient.on(CLIENT_EVENTS.RTM.AUTHENTICATED, onAuthenticated);
+    slackRtmClient.on(RTM_EVENTS.MESSAGE, onMessage);
+    slackRtmClient.on(RTM_EVENTS.REACTION_ADDED, onReactionAdded);
 
-    rtm.on(CLIENT_EVENTS.RTM.AUTHENTICATED, onAuthenticated);
-    rtm.on(RTM_EVENTS.MESSAGE, onMessage);
-    rtm.on(RTM_EVENTS.REACTION_ADDED, onReactionAdded);
-
-    await craigslist.start();
-    sendCraigslistPost();
-    craigslistTimer = setInterval(sendCraigslistPost, CRAIGLIST_POST_INTERVAL_MS);
+    slackRtmClient.start();
 }
 
 function end() {
     removeTweetListener(ARBYS_SEARCH_STRING);
     clearInterval(craigslistTimer);
-    // TODO: end rtm?
+    clearInterval(coilTimer);
+    clearInterval(arbysTimer);
+    // TODO: end slackRtmClient?
 }
 
-function sendCraigslistPost() {
-    let post = craigslist.getRandomPost();
-    if (!post) return;
+function setChannelTopic() {
+    slackWebClient.conversations.setPurpose(botTestChannelId, 'bummerbot is in town');
+}
 
-    const msg = `${ getAlternativePhrasing(phraseTypes.SYNTH_POST) } ${ post.link }`;
-    rtm.sendMessage(msg, botTestChannelId);
+async function sendCraigslistPost() {
+    try {
+        const post = craigslist.getRandomPost();
+
+        if (post) {
+            const msg = `${ getAlternativePhrasing(phraseTypes.SYNTH_POST) } ${ post.link }`;
+            await slackRtmClient.sendMessage(msg, botTestChannelId);
+        }
+    }
+    catch (err) {
+        console.log('Error sending Craigslist post:', err);
+    }
+}
+
+async function sendCoilReminder() {
+    const reminderPhrasing = getAlternativePhrasing(phraseTypes.COIL_REMINDER);
+    const coilUrl = await getCoilYouTubeURL();
+    const message = `${ reminderPhrasing } ${ coilUrl }`;
+    slackRtmClient.sendMessage(message, botTestChannelId);
 }
 
 function onArbysTweet(tweet) {
@@ -67,13 +85,16 @@ function onArbysTweet(tweet) {
         retweetedIds.push(tweet.retweeted_status.id_str);
     }
 
+    if (minutesSinceLastArbysTweet < 60) return;
+
     const user = tweet.quoted_status ? tweet.quoted_status.user.screen_name : tweet.user.screen_name;
     const statusId = tweet.quoted_status ? tweet.quoted_status.id_str : tweet.id_str;
     const url = `https://twitter.com/${user}/status/${statusId}`;
-    rtm.sendMessage(url, botTestChannelId);
+    slackRtmClient.sendMessage(url, botTestChannelId);
+    minutesSinceLastArbysTweet = 0;
 }
 
-function onAuthenticated(rtmStartData) {
+async function onAuthenticated(rtmStartData) {
     console.log(`Logged in as ${rtmStartData.self.name} of team ${rtmStartData.team.name},
     but not yet connected to a channel`);
     botUserId = rtmStartData.self.id;
@@ -87,6 +108,15 @@ function onAuthenticated(rtmStartData) {
     botTestChannelId = botTestChannel.id;
 
     arbysSubscription = registerTweetListener(ARBYS_SEARCH_STRING, onArbysTweet);
+
+    await craigslist.start();
+    craigslistTimer = setInterval(sendCraigslistPost, CRAIGLIST_POST_INTERVAL_MS);
+
+    arbysTimer = setInterval(() => {
+        minutesSinceLastArbysTweet++;
+    }, 60000);
+
+    setChannelTopic();
 }
 
 async function onMessage(message) {
@@ -95,16 +125,17 @@ async function onMessage(message) {
 
         const italicized = /_.*_/.test(message.text);
         if (italicized) {
-            rtm.sendTyping(message.channel);
-            rtm.sendMessage(`${ message.text }, lol`, message.channel);
+            slackRtmClient.sendTyping(message.channel);
+            slackRtmClient.sendMessage(`${ message.text }, lol`, message.channel);
+            slackWebClient.conversations.setTopic(botTestChannelId, message.text);
         }
 
         const entities = await lpClient.detectEntities(message.text);
 
         if (entities.hasOwnProperty('greetings')) {
             const dayName = getDay();
-            rtm.sendTyping(message.channel);
-            rtm.sendMessage(`Oi <@${ message.user }>. ${ dayName }s are meaningless`, message.channel);
+            slackRtmClient.sendTyping(message.channel);
+            slackRtmClient.sendMessage(`Oi <@${ message.user }>. ${ dayName }s are meaningless`, message.channel);
             return;
         }
 
@@ -113,8 +144,8 @@ async function onMessage(message) {
 
             const response = getResponseForIntent(firstIntent);
             if (response) {
-                rtm.sendTyping(message.channel);
-                rtm.sendMessage(response, message.channel);
+                slackRtmClient.sendTyping(message.channel);
+                slackRtmClient.sendMessage(response, message.channel);
             }
         }
     }
@@ -124,6 +155,6 @@ async function onMessage(message) {
 }
 
 function onReactionAdded(reaction) {
-    rtm.sendTyping(message.channel);
-    rtm.sendMessage(`Thanks for the :${ reaction.reaction }:, <@${ reaction.user }>!`, reaction.item.channel);
+    slackRtmClient.sendTyping(message.channel);
+    slackRtmClient.sendMessage(`Thanks for the :${ reaction.reaction }:, <@${ reaction.user }>!`, reaction.item.channel);
 }
