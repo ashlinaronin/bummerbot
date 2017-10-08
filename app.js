@@ -21,7 +21,7 @@ let botUserId;
 let botTestChannelId;
 let lpClient, slackRtmClient, slackWebClient, arbysSubscription;
 let minutesSinceLastArbysTweet = 0;
-let craigslistTimer, coilTimer, arbystimer;
+let craigslistTimer, coilTimer, arbysTimer;
 let retweetedIds = [];
 
 init();
