@@ -1,4 +1,5 @@
 const phraseTypes = require('./../constants/phraseTypes');
+const utils = require('./utils');
 
 const phrases = {
     [phraseTypes.SYNTH_POST]: [
@@ -17,13 +18,8 @@ const phrases = {
 function getAlternativePhrasing(phraseType) {
     if (!phrases.hasOwnProperty(phraseType)) return '';
 
-    return getRandomItemFromArray(phrases[phraseType]);
+    return utils.getRandomItemFromArray(phrases[phraseType]);
 }
-
-function getRandomItemFromArray(array) {
-    return array[Math.floor(Math.random() * array.length)];
-}
-
 
 module.exports = {
     getAlternativePhrasing

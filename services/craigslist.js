@@ -1,4 +1,5 @@
 const feedparser = require('feedparser-promised');
+const utils = require('./utils');
 const feedUrl = 'https://portland.craigslist.org/search/sss?format=rss&query=synth';
 const options = {
     uri: feedUrl,
@@ -28,7 +29,7 @@ async function updatePosts() {
 function getRandomPost() {
     if (!posts.length) return null;
 
-    const postIndex = getRandomArrayIndex(posts);
+    const postIndex = utils.getRandomArrayIndex(posts);
     const post = posts[postIndex];
 
     if (sentPostLinks.indexOf(post.link) > -1) {
@@ -39,10 +40,6 @@ function getRandomPost() {
     posts.splice(postIndex, 1);
 
     return post;
-}
-
-function getRandomArrayIndex(array) {
-    return Math.floor(Math.random() * array.length);
 }
 
 module.exports = {
