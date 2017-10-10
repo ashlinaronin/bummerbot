@@ -3,6 +3,6 @@
   "COIL_POST_INTERVAL_MS": 93600000,
   "ARBYS_TWEET_INTERVAL_MIN": 4400,
   "ARBYS_SEARCH_STRING": "arbys",
-  "PRIMARY_CHANNEL_NAME": "bot_test",
+  "PRIMARY_CHANNEL_NAME": "general",
   "PRIMARY_CHANNEL_PURPOSE": "for use of bummerbot"
 }

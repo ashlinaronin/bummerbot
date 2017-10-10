@@ -29,7 +29,7 @@ function init() {
     slackRtmClient.on(CLIENT_EVENTS.RTM.AUTHENTICATED, onAuthenticated);
     slackRtmClient.on(CLIENT_EVENTS.RTM.RTM_CONNECTION_OPENED, onConnectionOpened);
     slackRtmClient.on(RTM_EVENTS.MESSAGE, onMessage);
-    slackRtmClient.on(RTM_EVENTS.REACTION_ADDED, onReactionAdded);
+    // slackRtmClient.on(RTM_EVENTS.REACTION_ADDED, onReactionAdded);
 
     slackRtmClient.start();
 }
