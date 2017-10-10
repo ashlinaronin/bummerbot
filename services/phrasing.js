@@ -7,11 +7,17 @@ const phrases = {
         'dudes...',
         'wut!',
         'look what i just found you guys',
-        'who wants it?'
+        'who wants it?',
+        'this thing is siqq',
+        'lol so cheap',
+        'dang',
+        'shit'
     ],
     [phraseTypes.COIL_REMINDER]: [
         'have you guys heard this one?',
-        'do you know about this band?'
+        'do you know about this band?',
+        'i have this on vinyl',
+        ':coil:'
     ]
 };
 
