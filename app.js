@@ -62,8 +62,6 @@ async function onConnectionOpened() {
     lpClient = new LanguageProcessor();
     integrationManager = new IntegrationManager(config);
     integrationManager.subscribeToMessage(sendMessageFromIntegration);
-
-    setChannelPurpose();
 }
 
 async function sendMessageFromIntegration(msg) {
