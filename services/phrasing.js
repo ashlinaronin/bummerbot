@@ -17,7 +17,8 @@ const phrases = {
         'have you guys heard this one?',
         'do you know about this band?',
         'i have this on vinyl',
-        ':coil:'
+        ':coil:',
+        'deep cuts'
     ]
 };
 
