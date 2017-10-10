@@ -7,26 +7,16 @@ const token = process.env.SLACK_BOT_TOKEN || '';
 const getDay = require('./services/weekdays');
 const phraseTypes = require('./constants/phraseTypes');
 const { getResponseForIntent } = require('./services/intents');
-const { registerTweetListener, removeTweetListener } = require('./services/tweetStream');
-const craigslist = require('./services/craigslist');
-const { getAlternativePhrasing } = require('./services/phrasing');
-const { getCoilYouTubeURL } = require('./services/youtube');
 const LanguageProcessor = require('./services/LanguageProcessor');
-const ARBYS_SEARCH_STRING = 'arbys';
+const IntegrationManager = require('./services/IntegrationManager');
 const config = require('./config');
 
-let botUserId;
-let botTestChannelId;
-let lpClient, slackRtmClient, slackWebClient, arbysSubscription;
-let minutesSinceLastArbysTweet = 0;
-let craigslistTimer, coilTimer, arbysTimer;
-let retweetedIds = [];
+let botUserId, primaryChannelId;
+let lpClient, integrationManager, slackRtmClient, slackWebClient;
 
 init();
 
 function init() {
-    lpClient = new LanguageProcessor();
-
     slackRtmClient = new RtmClient(token, {
         logLevel: 'error',
         dataStore: new MemoryDataStore()
@@ -45,52 +35,12 @@ function init() {
 }
 
 function end() {
-    removeTweetListener(ARBYS_SEARCH_STRING);
-    clearInterval(craigslistTimer);
-    clearInterval(coilTimer);
-    clearInterval(arbysTimer);
-    // TODO: end slackRtmClient?
+    integrationManager.unsubscribe(sendMessageFromIntegration);
+    integrationManager.destroy();
 }
 
 function setChannelPurpose() {
-    slackWebClient.conversations.setPurpose(botTestChannelId, 'for use of bummerbot');
-}
-
-async function sendCraigslistPost() {
-    try {
-        const post = craigslist.getRandomPost();
-
-        if (post) {
-            const msg = `${ getAlternativePhrasing(phraseTypes.SYNTH_POST) } ${ post.link }`;
-            await slackRtmClient.sendMessage(msg, botTestChannelId);
-        }
-    }
-    catch (err) {
-        console.log('Error sending Craigslist post:', err);
-    }
-}
-
-async function sendCoilReminder() {
-    const reminderPhrasing = getAlternativePhrasing(phraseTypes.COIL_REMINDER);
-    const coilUrl = await getCoilYouTubeURL();
-    const message = `${ reminderPhrasing } ${ coilUrl }`;
-    slackRtmClient.sendMessage(message, botTestChannelId);
-}
-
-function onArbysTweet(tweet) {
-    if (tweet.retweeted_status) {
-        if (retweetedIds.indexOf(tweet.retweeted_status.id_str) > -1) return;
-
-        retweetedIds.push(tweet.retweeted_status.id_str);
-    }
-
-    if (minutesSinceLastArbysTweet < config.ARBYS_TWEET_INTERVAL_MIN) return;
-
-    const user = tweet.quoted_status ? tweet.quoted_status.user.screen_name : tweet.user.screen_name;
-    const statusId = tweet.quoted_status ? tweet.quoted_status.id_str : tweet.id_str;
-    const url = `https://twitter.com/${user}/status/${statusId}`;
-    slackRtmClient.sendMessage(url, botTestChannelId);
-    minutesSinceLastArbysTweet = 0;
+    slackWebClient.conversations.setPurpose(primaryChannelId, config.PRIMARY_CHANNEL_PURPOSE);
 }
 
 async function onAuthenticated(rtmStartData) {
@@ -98,28 +48,31 @@ async function onAuthenticated(rtmStartData) {
     but not yet connected to a channel`);
     botUserId = rtmStartData.self.id;
 
-    const botTestChannel = rtmStartData.channels.find(c => c.name === config.PRIMARY_CHANNEL_NAME);
+    const primaryChannel = rtmStartData.channels.find(c => c.name === config.PRIMARY_CHANNEL_NAME);
 
-    if (!botTestChannel) {
+    if (!primaryChannel) {
         throw new Error('Bot test channel not found');
     }
 
-    botTestChannelId = botTestChannel.id;
+    primaryChannelId = primaryChannel.id;
 }
 
-async function onConnectionOpened(data) {
-    arbysSubscription = registerTweetListener(ARBYS_SEARCH_STRING, onArbysTweet);
-
-    await craigslist.start();
-    craigslistTimer = setInterval(sendCraigslistPost, config.CRAIGLIST_POST_INTERVAL_MS);
-
-    arbysTimer = setInterval(() => {
-        minutesSinceLastArbysTweet++;
-    }, 60000);
+async function onConnectionOpened() {
+    console.log('Connection opened, initializing LanguageProcessor and IntegrationManager');
+    lpClient = new LanguageProcessor();
+    integrationManager = new IntegrationManager(config);
+    integrationManager.subscribeToMessage(sendMessageFromIntegration);
 
     setChannelPurpose();
+}
 
-    sendCoilReminder();
+async function sendMessageFromIntegration(msg) {
+    if (!msg || typeof msg !== 'string') {
+        return Promise.reject('received malformed message from integration manager, skipping');
+    }
+
+    slackRtmClient.sendTyping(primaryChannelId);
+    return slackRtmClient.sendMessage(msg, primaryChannelId);
 }
 
 async function onMessage(message) {
@@ -130,7 +83,7 @@ async function onMessage(message) {
         if (italicized) {
             slackRtmClient.sendTyping(message.channel);
             slackRtmClient.sendMessage(`${ message.text }, lol`, message.channel);
-            slackWebClient.conversations.setTopic(botTestChannelId, message.text);
+            slackWebClient.conversations.setTopic(primaryChannelId, message.text);
         }
 
         const entities = await lpClient.detectEntities(message.text);
@@ -158,6 +111,7 @@ async function onMessage(message) {
 }
 
 function onReactionAdded(reaction) {
-    slackRtmClient.sendTyping(message.channel);
+    // TODO check if reaction is to a post by bummerbot
+    slackRtmClient.sendTyping(reaction.channel);
     slackRtmClient.sendMessage(`Thanks for the :${ reaction.reaction }:, <@${ reaction.user }>!`, reaction.item.channel);
 }
