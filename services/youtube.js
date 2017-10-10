@@ -1,27 +1,34 @@
 const querystring = require('querystring');
 const fetch = require('isomorphic-fetch');
+const utils = require('./utils');
 
-const baseUrl = 'https://content.googleapis.com/youtube/v3/search';
+const baseUrl = 'https://www.googleapis.com/youtube/v3/search';
 const options = {
     q: 'coil',
     maxResults: 25,
     part: 'snippet',
-    key: 'AIzaSyAMkHWnLNAvpKte-XA9nh3RheX7lFn_dNM'
+    key: process.env.GOOGLE_SEARCH_KEY
 };
 
 const coilUrl = `${ baseUrl }?${ querystring.stringify(options)}`;
 
 async function getCoilYouTubeURL() {
     try {
-        const results = await fetch(coilUrl);
+        const response = await fetch(coilUrl);
 
-        if (!results.ok) return null;
+        if (!response.ok) return null;
 
-        return results[0];
+        const jsonSearchResults = await response.json();
+        const randomVideo = utils.getRandomItemFromArray(jsonSearchResults.items);
+        return createYouTubeURL(randomVideo.id.videoId);
     }
     catch (err) {
         console.log('Error fetching Coil YouTube URL', err);
     }
+}
+
+function createYouTubeURL(videoId) {
+    return `https://youtube.com/watch?v=${ videoId }`;
 }
 
 module.exports = {
