@@ -13,9 +13,7 @@ const { getAlternativePhrasing } = require('./services/phrasing');
 const { getCoilYouTubeURL } = require('./services/youtube');
 const LanguageProcessor = require('./services/LanguageProcessor');
 const ARBYS_SEARCH_STRING = 'arbys';
-const CRAIGLIST_POST_INTERVAL_MS = 28800000; // 8 hours
-const COIL_POST_INTERVAL_MS = 172800000; // 2 days
-const PRIMARY_CHANNEL_NAME = 'bot_test';
+const config = require('./config');
 
 let botUserId;
 let botTestChannelId;
@@ -39,6 +37,7 @@ function init() {
     });
 
     slackRtmClient.on(CLIENT_EVENTS.RTM.AUTHENTICATED, onAuthenticated);
+    slackRtmClient.on(CLIENT_EVENTS.RTM.RTM_CONNECTION_OPENED, onConnectionOpened);
     slackRtmClient.on(RTM_EVENTS.MESSAGE, onMessage);
     slackRtmClient.on(RTM_EVENTS.REACTION_ADDED, onReactionAdded);
 
@@ -53,8 +52,8 @@ function end() {
     // TODO: end slackRtmClient?
 }
 
-function setChannelTopic() {
-    slackWebClient.conversations.setPurpose(botTestChannelId, 'bummerbot is in town');
+function setChannelPurpose() {
+    slackWebClient.conversations.setPurpose(botTestChannelId, 'for use of bummerbot');
 }
 
 async function sendCraigslistPost() {
@@ -85,7 +84,7 @@ function onArbysTweet(tweet) {
         retweetedIds.push(tweet.retweeted_status.id_str);
     }
 
-    if (minutesSinceLastArbysTweet < 60) return;
+    if (minutesSinceLastArbysTweet < config.ARBYS_TWEET_INTERVAL_MIN) return;
 
     const user = tweet.quoted_status ? tweet.quoted_status.user.screen_name : tweet.user.screen_name;
     const statusId = tweet.quoted_status ? tweet.quoted_status.id_str : tweet.id_str;
@@ -99,24 +98,26 @@ async function onAuthenticated(rtmStartData) {
     but not yet connected to a channel`);
     botUserId = rtmStartData.self.id;
 
-    const botTestChannel = rtmStartData.channels.find(c => c.name === PRIMARY_CHANNEL_NAME);
+    const botTestChannel = rtmStartData.channels.find(c => c.name === config.PRIMARY_CHANNEL_NAME);
 
     if (!botTestChannel) {
         throw new Error('Bot test channel not found');
     }
 
     botTestChannelId = botTestChannel.id;
+}
 
+async function onConnectionOpened(data) {
     arbysSubscription = registerTweetListener(ARBYS_SEARCH_STRING, onArbysTweet);
 
     await craigslist.start();
-    craigslistTimer = setInterval(sendCraigslistPost, CRAIGLIST_POST_INTERVAL_MS);
+    craigslistTimer = setInterval(sendCraigslistPost, config.CRAIGLIST_POST_INTERVAL_MS);
 
     arbysTimer = setInterval(() => {
         minutesSinceLastArbysTweet++;
     }, 60000);
 
-    setChannelTopic();
+    setChannelPurpose();
 
     sendCoilReminder();
 }
